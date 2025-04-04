@@ -50,7 +50,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-enum class ScreenState {
+enum class Directions {
     NoteList,
     AddNote,
     NoteDetail
@@ -60,77 +60,72 @@ enum class ScreenState {
 fun NotesApp(viewModel: NoteViewModel = viewModel()) {
     val notesState = viewModel.notes.collectAsState()
     val notes = notesState.value
-    var currentScreen = remember { mutableStateOf(ScreenState.NoteList) }
-    var selectedNoteId = remember { mutableStateOf<Int?>(null) }
-    var showFab = remember { mutableStateOf(true) }
+    val currentScreen = remember { mutableStateOf(Directions.NoteList) }
+    val selectedNoteId = remember { mutableStateOf<Int?>(null) }
+    val showFab = remember { mutableStateOf(true) }
 
-    MaterialTheme {
-        Scaffold(
-            floatingActionButton = {
-                if (showFab.value) {
-                    ExtendedFloatingActionButton(
-                        text = { Text("Add a note") },
-                        icon = { Icon(Icons.Default.Add, contentDescription = "Add") },
-                        onClick = {
-                            currentScreen.value = ScreenState.AddNote
-                        }
-                    )
-                }
+    Scaffold(
+        floatingActionButton = {
+            if (showFab.value) {
+                ExtendedFloatingActionButton(
+                    text = { Text("Add a note") },
+                    icon = { Icon(Icons.Default.Add, contentDescription = "Add") },
+                    onClick = { currentScreen.value = Directions.AddNote }
+                )
             }
-        ) { padding: PaddingValues ->
-            when (currentScreen.value) {
-                ScreenState.NoteList -> {
-                    showFab.value = true
-                    NoteListScreen(
-                        notes = notes,
-                        onNoteClick = { noteId ->
-                            selectedNoteId.value = noteId
-                            currentScreen.value = ScreenState.NoteDetail
-                        },
-                        modifier = Modifier.padding(padding)
-                    )
-                }
-                ScreenState.AddNote -> {
-                    showFab.value = false
-                    AddNoteScreen(
-                        onSave = { title, text ->
+        }
+    ) { padding ->
+        when (currentScreen.value) {
+            Directions.NoteList -> {
+                showFab.value = true
+                NoteListScreen(
+                    notes = notes,
+                    onNoteClick = { noteId ->
+                        selectedNoteId.value = noteId
+                        currentScreen.value = Directions.NoteDetail
+                    },
+                    modifier = Modifier.padding(padding)
+                )
+            }
+            Directions.AddNote -> {
+                showFab.value = false
+                AddNoteScreen(
+                    onSave = { title, text ->
+                        if (title.isNotBlank() || text.isNotBlank()) {
                             viewModel.addNote(title, text)
-                            currentScreen.value = ScreenState.NoteList
-                        },
-                        modifier = Modifier.padding(padding)
-                    )
-                }
-                ScreenState.NoteDetail -> {
-                    showFab.value = false
-                    selectedNoteId.value?.let { noteId ->
-                        val note = viewModel.getNoteById(noteId)
-                        note?.let {
-                            NoteDetailScreen(
-                                note = it,
-                                onBack = {
-                                    currentScreen.value = ScreenState.NoteList
-                                    selectedNoteId.value = null
-                                },
-                                modifier = Modifier.padding(padding)
-                            )
-                        } ?: run {
-                            Text(
-                                text = "Note not found",
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .wrapContentSize(Alignment.Center),
-                                style = MaterialTheme.typography.headlineSmall
-                            )
+                            currentScreen.value = Directions.NoteList
                         }
+                    },
+                    onBack = { currentScreen.value = Directions.NoteList },
+                    modifier = Modifier.padding(padding)
+                )
+            }
+            Directions.NoteDetail -> {
+                showFab.value = false
+                selectedNoteId.value?.let { noteId ->
+                    val note = viewModel.getNoteById(noteId)
+                    note?.let {
+                        NoteDetailScreen(
+                            note = it,
+                            onBack = {
+                                currentScreen.value = Directions.NoteList
+                                selectedNoteId.value = null
+                            },
+                            modifier = Modifier.padding(padding)
+                        )
                     } ?: run {
                         Text(
-                            text = "No note selected",
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .wrapContentSize(Alignment.Center),
+                            text = "Note not found. Please try again.",
+                            modifier = Modifier.fillMaxSize().wrapContentSize(Alignment.Center),
                             style = MaterialTheme.typography.headlineSmall
                         )
                     }
+                } ?: run {
+                    Text(
+                        text = "No note selected. Please try again.",
+                        modifier = Modifier.fillMaxSize().wrapContentSize(Alignment.Center),
+                        style = MaterialTheme.typography.headlineSmall
+                    )
                 }
             }
         }
@@ -147,9 +142,7 @@ fun NoteListScreen(
         if (notes.isEmpty()) {
             Text(
                 text = "No notes yet",
-                modifier = Modifier
-                    .fillMaxSize()
-                    .wrapContentSize(Alignment.Center),
+                modifier = Modifier.fillMaxSize().wrapContentSize(Alignment.Center),
                 style = MaterialTheme.typography.headlineSmall
             )
         } else {
@@ -162,9 +155,7 @@ fun NoteListScreen(
                             .clickable { onNoteClick(note.id) },
                         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                     ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp)
-                        ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
                             Text(
                                 text = note.title,
                                 style = MaterialTheme.typography.titleMedium
@@ -186,25 +177,30 @@ fun NoteListScreen(
 @Composable
 fun AddNoteScreen(
     onSave: (String, String) -> Unit,
+    onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var title = remember { mutableStateOf("") }
-    var text = remember { mutableStateOf("") }
+    val title = remember { mutableStateOf("") }
+    val text = remember { mutableStateOf("") }
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         OutlinedTextField(
             value = title.value,
             onValueChange = { title.value = it },
+            label = { Text("Title") },
+            singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(modifier = Modifier.height(16.dp))
         OutlinedTextField(
             value = text.value,
             onValueChange = { text.value = it },
+            label = { Text("Text") },
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
@@ -215,6 +211,13 @@ fun AddNoteScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Save")
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = onBack,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Back")
         }
     }
 }
